@@ -1,22 +1,13 @@
 import express, { Application, Request, Response } from 'express';
-import bodyParser from 'body-parser';
+import path from 'path';
 const app: Application = express();
-const PORT = 3000;
 
-app.use(bodyParser.json());
-app.use(bodyParser.urlencoded({ extended: true }));
+const PORT = 3001;
 
-app.get('/', async (req: Request, res: Response): Promise<Response> => {
-  return res.status(200).send({
-    message: 'Hello World!',
-  });
-});
+app.use(express.static(path.join(__dirname, 'public')))
 
-app.post('/post', async (req: Request, res: Response): Promise<Response> => {
-  console.log(req.body);
-  return res.status(200).send({
-    message: 'Hello World from post!',
-  });
+app.get('/', (req: Request, res: Response) => {
+  res.sendFile(path.join(__dirname,'index.html'));
 });
 
 try {

@@ -1,0 +1,137 @@
+<html>
+<head>
+    <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.6.3/jquery.min.js"></script>
+    <!--script src="https://unpkg.com/peerjs@1.3.2/dist/peerjs.min.js"></script-->
+    <script src="https://unpkg.com/peerjs@1.4.7/dist/peerjs.js"></script>
+    <script type="text/javascript" src="app.js"></script>
+
+    <script>
+        let userId = "";
+        let PEER_ID = "";
+        let peer;
+
+        $(document).ready(function () {
+            // Initiate peer
+            refreshRooms();
+        });
+
+        function connect() {
+            if (PEER_ID !== "" && peer) {
+                console.log("Already connected");
+                return;
+            }
+
+            PEER_ID = $("#peer-id").val();
+            userId = $("#user-id").val();
+
+            /*peer = new Peer(PEER_ID, {
+                host: '127.0.0.1',
+                port: 3000,
+                path: '/myapp',
+                secure: false
+            });*/
+            peer = new Peer({
+                host: "0.peerjs.com",
+                port: 443,
+                path: "/",
+                pingInterval: 5000,
+            });
+
+            peer.on('open', function (id) {
+                PEER_ID = id;
+                $("#peer-id").attr('value', id);
+
+                // We need to update peerId on the server
+                updatePeerId(userId, PEER_ID);
+            });
+
+            peer.on('connection', function(conn) {
+                conn.on('data', function(data){
+                    console.log('Received', data);
+                    $("#messages").append("<li>" + data +"</li>");
+                });
+            });
+        }
+
+        function reset() {
+            updatePeerId(userId, "");
+        }
+
+        function joinRoom(roomId) {
+            $.ajax({
+                url: "http://localhost:3000/rooms/join",
+                type: "POST",
+                data: {
+                    userId: userId,
+                    roomId: roomId
+                },
+                success: function (data) {
+                    console.log(data);
+
+                    let room = data.room;
+
+                    for (let i = 0; i < room.users.length; i++) {
+                        let user = room.users[i];
+                        let peerId = user._peerId;
+
+                        if (PEER_ID === peerId) continue;
+
+                        // Connect to each peer to send data
+                        var conn = peer.connect(peerId);
+
+                        conn.on('open', function () {
+                            // Send messages
+                            conn.send('Hello from ' + userId);
+                        });
+
+                        // https://github.com/peers/peerjs/issues/636#issuecomment-832807568
+                        conn.on('close', () => {
+                            console.log("conn close event");
+                            handlePeerDisconnect(peer);
+                        });
+
+                        // Connect to each peer to send streams
+                        /*var call = peer.call(peerId, window.localStream);
+                        call.on('stream', function (remoteStream) {
+                            // Show stream in some video/canvas element.
+                        });*/
+
+                        // peerjs bug prevents this from firing: https://github.com/peers/peerjs/issues/636
+                        /*call.on('close', () => {
+                            console.log("call close event");
+                            handlePeerDisconnect(peer);
+                        });*/
+                    }
+                },
+                error: function (data) {
+                    console.log(data);
+                }
+            });
+        }
+    </script>
+</head>
+<body>
+<div style="margin: 100px;">
+    <div class="jumbotron" style="padding: 40px;">
+        <h1>Client</h1>
+        <input type="button" value="Connect" onclick="connect()">
+        <input id="user-id" type="text" value="1"/>
+
+        <input id="peer-id" type="text" value=""/>
+        <input type="button" value="Reset" onclick="reset()">
+        <hr/>
+        <div class="container">
+            <span>Rooms:</span><input type="button" value="Refresh" onclick="refreshRooms()">
+            <ul class="nav navbar-nav" id="rooms">
+            </ul>
+        </div>
+        <div class="container">
+            <span>Messages:</span>
+            <ul class="nav navbar-nav" id="messages">
+            </ul>
+        </div>
+    </div>
+    <p></p>
+</div>
+</body>
+</html>
