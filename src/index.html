@@ -51,10 +51,27 @@
                     $("#messages").append("<li>" + data +"</li>");
                 });
             });
+
+            var getUserMedia = navigator.getUserMedia || navigator.webkitGetUserMedia || navigator.mozGetUserMedia;
+            peer.on('call', function(call) {
+                getUserMedia({video: false, audio: true}, function(stream) {
+                    call.answer(stream); // Answer the call with an A/V stream.
+                    call.on('stream', function(remoteStream) {
+                        // Show stream in some video/canvas element.
+                        var audio = $('<audio controls autoplay />').appendTo('#audios');
+                        //audio[0].src = (URL || webkitURL || mozURL).createObjectURL(remoteStream);
+                        audio[0].srcObject = remoteStream;
+                    });
+                }, function(err) {
+                    console.log('Failed to get local stream' ,err);
+                });
+            });
         }
 
         function reset() {
+            userId = $("#user-id").val();
             updatePeerId(userId, "");
+            // Leave room
         }
 
         function joinRoom(roomId) {
@@ -74,7 +91,7 @@
                         let user = room.users[i];
                         let peerId = user._peerId;
 
-                        if (PEER_ID === peerId) continue;
+                        if (peerId === "" || PEER_ID === peerId) continue;
 
                         // Connect to each peer to send data
                         var conn = peer.connect(peerId);
@@ -91,16 +108,22 @@
                         });
 
                         // Connect to each peer to send streams
-                        /*var call = peer.call(peerId, window.localStream);
-                        call.on('stream', function (remoteStream) {
-                            // Show stream in some video/canvas element.
-                        });*/
-
-                        // peerjs bug prevents this from firing: https://github.com/peers/peerjs/issues/636
-                        /*call.on('close', () => {
-                            console.log("call close event");
-                            handlePeerDisconnect(peer);
-                        });*/
+                        var getUserMedia = navigator.getUserMedia || navigator.webkitGetUserMedia || navigator.mozGetUserMedia;
+                        getUserMedia({video: false, audio: true}, function(stream) {
+                            var call = peer.call(peerId, stream);
+                            call.on('stream', function(remoteStream) {
+                                // Show stream in some video/canvas element.
+                                var audio = $('<audio controls autoplay />').appendTo('#audios');
+                                audio[0].srcObject = remoteStream;
+                            });
+                            // peerjs bug prevents this from firing: https://github.com/peers/peerjs/issues/636
+                            call.on('close', () => {
+                                console.log("call close event");
+                                handlePeerDisconnect(peer);
+                            });
+                        }, function(err) {
+                            console.log('Failed to get local stream' ,err);
+                        });
                     }
                 },
                 error: function (data) {
@@ -127,6 +150,8 @@
         </div>
         <div class="container">
             <span>Messages:</span>
+            <div id="audios">
+            </div>
             <ul class="nav navbar-nav" id="messages">
             </ul>
         </div>
