@@ -30,30 +30,7 @@ function joinRoom(roomId) {
 
                 if (peerId === "" || PEER_ID === peerId) continue;
 
-                // Connect to each peer to send data
-                var conn = peer.connect(peerId);
-
-                conn.on('open', function () {
-                    // Send messages
-                    conn.send('Hello from ' + userId);
-                });
-
-                // https://github.com/peers/peerjs/issues/636#issuecomment-832807568
-                conn.on('close', () => {
-                    console.log("conn close event");
-                    handlePeerDisconnect(peer);
-                });
-
-                getNavigatorMedia(function (stream) {
-                    var call = peer.call(peerId, stream);
-                    call.on('stream', remoteStream => playStream(remoteStream));
-                    // peerjs bug prevents this from firing: https://github.com/peers/peerjs/issues/636
-                    call.on('close', () => {
-                        removeStream(peerId);
-                        console.log("call close event");
-                        handlePeerDisconnect(peer);
-                    });
-                });
+                connectToPeer(peer, peerId);
             }
         },
         error: function (data) {
@@ -73,7 +50,7 @@ function refreshRooms() {
             $("#rooms").empty();
             for (let i = 0; i < rooms.length; i++) {
                 $("#rooms").append("<li>" +
-                    "<span>" + rooms[i].name + ": " + listUsers(rooms[i].users) + "</span>" +
+                    "<span>" + rooms[i].name + ": " + usersToString(rooms[i].users) + "</span>" +
                     "<input type=\"button\" value=\"Join\" onclick=\"joinRoom(" + rooms[i].id + ")\">" +
                     "</li>");
             }
@@ -84,7 +61,7 @@ function refreshRooms() {
     });
 }
 
-function listUsers(users) {
+function usersToString(users) {
     if (!users || users.length === 0) return "(Empty)";
     let result = "";
     for (let i = 0; i < users.length; i++) {
@@ -145,7 +122,11 @@ function connect() {
         path: '/myapp',
         secure: false
     });*/
-    peer = new Peer({
+    peer = initPeer();
+}
+
+function initPeer() {
+    let peer = new Peer({
         host: SERVER_PEERJS_URL,
         port: 443,
         path: "/",
@@ -171,6 +152,34 @@ function connect() {
         getNavigatorMedia(function (stream) {
             call.answer(stream); // Answer the call with an A/V stream.
             call.on('stream', remoteStream => playStream(remoteStream));
+        });
+    });
+
+    return peer;
+}
+
+function connectToPeer(peer, peerId) {
+    // Connect to each peer to send data
+    var conn = peer.connect(peerId);
+
+    conn.on('open', function () {
+        // Send messages
+        conn.send('Hello from ' + userId);
+    });
+
+    // https://github.com/peers/peerjs/issues/636#issuecomment-832807568
+    conn.on('close', () => {
+        console.log("conn close event");
+        handlePeerDisconnect(peer);
+    });
+
+    getNavigatorMedia(function (stream) {
+        var call = peer.call(peerId, stream);
+        call.on('stream', remoteStream => playStream(remoteStream));
+        // peerjs bug prevents this from firing: https://github.com/peers/peerjs/issues/636
+        call.on('close', () => {
+            console.log("call close event");
+            handlePeerDisconnect(peer);
         });
     });
 }
